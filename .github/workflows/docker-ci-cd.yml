@@ -57,7 +57,7 @@ jobs:
       - name: Run OWASP ZAP baseline scan
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: "http://juice-shop.herokuapp.com" # Remplace par ton URL de déploiement
+          target: "http://localhost:4000/#/" 
           cmd_options: "-a"
 
   # (Optionnel) Déploiement sur un serveur distant
