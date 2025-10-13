@@ -1,81 +1,35 @@
-name: CI/CD Pipeline - OWASP Juice Shop
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - '*.md'
-      - 'LICENSE'
-      - 'screenshots/**'
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
 
 jobs:
   build:
-    name:  Build Docker Image
     runs-on: ubuntu-latest
 
     steps:
-      # 1 Récupérer le code source du dépôt
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      # 2 Installer Docker (si non présent)
       - name: Set up Docker
         uses: docker/setup-buildx-action@v3
 
-      # 3 Construire l’image Docker Juice Shop
-      - name: Build Docker image
+      - name: Build Docker Image
+        run: docker build -t juice-shop:latest .
+
+      - name: Run Juice Shop Container
+        run: docker run -d -p 3000:3000 --name juice-shop juice-shop:latest
+
+      - name: Static Code Analysis (SAST)
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest .
+          docker run --rm -v $PWD:/usr/src sonarsource/sonar-scanner-cli \
+          -Dsonar.projectKey=JuiceShop \
+          -Dsonar.sources=./ \
+          -Dsonar.host.url=http://localhost:9000
 
-      # 4 Se connecter à Docker Hub avec les secrets GitHub
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # 5 Pousser l’image Docker vers Docker Hub
-      - name: Push Docker image
+      - name: Dynamic Application Security Test (DAST)
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
-
-  security_scan:
-    name:  Security Scan (ZAP)
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      # 1 Télécharger le code
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 2 Scanner l’application avec OWASP ZAP
-      - name: Run OWASP ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: "http://localhost:4000/#/" 
-          cmd_options: "-a"
-
-  # (Optionnel) Déploiement sur un serveur distant
-  deploy:
-    name:  Deploy to Server
-    runs-on: ubuntu-latest
-    needs: security_scan
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Deploy to Remote Server via SSH
-        uses: appleboy/ssh-action@v1.1.0
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
-            docker stop juice-shop || true
-            docker rm juice-shop || true
-            docker run -d -p 3000:3000 --name juice-shop ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
+          docker run -t owasp/zap2docker-stable zap-baseline.py \
+          -t http://localhost:3000 -r zap_report.html
