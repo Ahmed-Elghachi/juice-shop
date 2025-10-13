@@ -1,3 +1,84 @@
+name: CI/CD Pipeline - OWASP Juice Shop
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE'
+      - 'screenshots/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name:  Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1 Récupérer le code source du dépôt
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2 Installer Docker (si non présent)
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      # 3 Construire l’image Docker Juice Shop
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest .
+
+      # 4 Se connecter à Docker Hub avec les secrets GitHub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 5 Pousser l’image Docker vers Docker Hub
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
+
+  security_scan:
+    name:  Security Scan (ZAP)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      # 1 Télécharger le code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2 Scanner l’application avec OWASP ZAP
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: "http://localhost:4000/#/" 
+          cmd_options: "-a"
+
+  # (Optionnel) Déploiement sur un serveur distant
+  deploy:
+    name:  Deploy to Server
+    runs-on: ubuntu-latest
+    needs: security_scan
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to Remote Server via SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
+            docker stop juice-shop || true
+            docker rm juice-shop || true
+            docker run -d -p 3000:3000 --name juice-shop ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
 name: CI/CD Pipeline
 
 on:
