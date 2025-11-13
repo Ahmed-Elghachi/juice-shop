@@ -22,6 +22,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Start SonarQube container
+        run: |
+          docker run -d --name sonarqube -p 9000:9000 sonarqube:lts
+          sleep 60  # attendre que SonarQube soit prêt
+
       - name: Cache SonarQube packages
         uses: actions/cache@v3
         with:
@@ -35,6 +40,5 @@ jobs:
           args: >
             -Dsonar.projectKey=app_juice-shop
             -Dsonar.sources=.
-            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.host.url=http://localhost:9000
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
