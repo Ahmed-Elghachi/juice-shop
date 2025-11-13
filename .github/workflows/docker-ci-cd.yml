@@ -78,7 +78,7 @@ jobs:
 
       - name: Start Juice Shop Container
         run: |
-          docker run -d -p 3000:3000 --name juice-shop ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
+          docker run -d -p 5000:3000 --name juice-shop ${{ secrets.DOCKER_USERNAME }}/juice-shop:latest
           sleep 15  # laisse le serveur démarrer
 
       - name: Run OWASP ZAP Baseline Scan
